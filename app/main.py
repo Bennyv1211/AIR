@@ -422,7 +422,7 @@ def _dashboard_html() -> str:
       border-radius: 20px;
       border: 1px solid var(--line);
       padding: 18px;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 14px 36px rgba(43, 49, 45, 0.04);
     }
 
     .sidebar {
@@ -667,7 +667,7 @@ def _dashboard_html() -> str:
       padding: 12px 14px;
       border-radius: 14px;
       border: 1px solid var(--line);
-      background: rgba(255, 255, 255, 0.92);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 246, 239, 0.94));
       color: var(--ink);
       font: inherit;
       transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
@@ -684,34 +684,60 @@ def _dashboard_html() -> str:
       background: linear-gradient(180deg, #fffdf8 0%, #f4ebdd 100%);
     }
 
+    .field input[type="file"]::file-selector-button {
+      margin-right: 10px;
+      padding: 9px 14px;
+      border: 0;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #214e43 0%, #2f8473 100%);
+      color: #fff9f2;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(33, 78, 67, 0.18);
+    }
+
     .actions {
-      display: flex;
-      align-items: center;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
-      flex-wrap: wrap;
       margin-top: 14px;
     }
 
+    .actions.single-action {
+      grid-template-columns: 1fr;
+    }
+
     .button {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      width: 100%;
       border: 1px solid transparent;
       border-radius: 999px;
-      padding: 10px 16px;
+      padding: 12px 18px;
       cursor: pointer;
       font: inherit;
       font-size: 14px;
       font-weight: 600;
-      transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+      letter-spacing: 0.01em;
+      transition: transform 140ms ease, opacity 140ms ease, box-shadow 140ms ease, border-color 140ms ease, filter 140ms ease;
+      box-shadow: 0 10px 24px rgba(43, 49, 45, 0.06);
     }
 
     .button:hover {
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-soft);
+      transform: translateY(-2px);
+      box-shadow: 0 16px 32px rgba(43, 49, 45, 0.1);
+      filter: saturate(1.02);
     }
 
     .button:disabled {
       opacity: 0.6;
       cursor: wait;
       transform: none;
+      box-shadow: none;
     }
 
     .button-primary {
@@ -720,15 +746,40 @@ def _dashboard_html() -> str:
     }
 
     .button-secondary {
-      background: #f2e8d9;
+      background: linear-gradient(180deg, #fffaf2 0%, #efe2cf 100%);
       color: var(--ink);
-      border-color: rgba(27, 42, 37, 0.08);
+      border-color: rgba(27, 42, 37, 0.1);
+    }
+
+    .button-secondary:hover {
+      border-color: rgba(25, 95, 82, 0.22);
+    }
+
+    .button-neutral {
+      background: linear-gradient(180deg, rgba(216, 235, 228, 0.76) 0%, rgba(191, 223, 213, 0.92) 100%);
+      color: var(--accent-strong);
+      border-color: rgba(25, 95, 82, 0.12);
     }
 
     .button-warning {
-      background: #f7eee1;
+      background: linear-gradient(180deg, #fff5eb 0%, #f4e2c7 100%);
       color: #8a5a22;
       border-color: rgba(138, 90, 34, 0.14);
+    }
+
+    .import-panel {
+      background:
+        linear-gradient(180deg, rgba(255, 252, 246, 0.98) 0%, rgba(247, 239, 226, 0.94) 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.7),
+        0 18px 40px rgba(43, 49, 45, 0.05);
+    }
+
+    .action-note {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
     }
 
     .status {
@@ -872,10 +923,10 @@ def _dashboard_html() -> str:
 
     .helper-note {
       margin-top: 10px;
-      padding: 12px 14px;
-      border-radius: 14px;
-      background: rgba(216, 235, 228, 0.55);
-      border: 1px solid rgba(25, 95, 82, 0.12);
+      padding: 14px 15px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(223, 241, 235, 0.88), rgba(213, 235, 228, 0.7));
+      border: 1px solid rgba(25, 95, 82, 0.14);
       color: var(--accent-strong);
       font-size: 13px;
       line-height: 1.5;
@@ -1139,6 +1190,7 @@ def _dashboard_html() -> str:
       .hero-board { grid-template-columns: 1fr; }
       .chart-grid { grid-template-columns: 1fr; }
       .upload-grid { grid-template-columns: 1fr; }
+      .actions { grid-template-columns: 1fr; }
       .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .app-shell { width: min(100% - 12px, 1380px); margin: 6px auto; padding: 10px; }
       .topbar { padding: 12px; }
@@ -1235,7 +1287,7 @@ def _dashboard_html() -> str:
             </div>
           </article>
 
-          <aside class="panel">
+          <aside class="panel import-panel">
             <div class="header-row">
               <div>
                 <p class="eyebrow">Import Center</p>
@@ -1265,14 +1317,15 @@ def _dashboard_html() -> str:
               </div>
             </div>
             <div class="actions">
-              <button id="inventory-preview" class="button button-secondary">Preview Inventory Mapping</button>
-              <button id="inventory-upload" class="button button-primary">Import Inventory</button>
-              <button id="usage-preview" class="button button-secondary">Preview Usage Mapping</button>
-              <button id="usage-upload" class="button button-secondary">Import Daily Usage</button>
-              <button id="refresh" class="button button-secondary">Refresh Board</button>
-              <button id="clear-memory" class="button button-warning" type="button">Clear Saved Memory</button>
-              <button id="export-verdict" class="button button-secondary" disabled>Export Verdict</button>
+              <button id="inventory-preview" class="button button-secondary">Preview Inventory Columns</button>
+              <button id="inventory-upload" class="button button-primary">Analyze Inventory</button>
+              <button id="usage-preview" class="button button-secondary">Preview Usage Columns</button>
+              <button id="usage-upload" class="button button-neutral">Analyze Usage Trends</button>
+              <button id="refresh" class="button button-secondary">Refresh Recommendation Board</button>
+              <button id="clear-memory" class="button button-warning" type="button">Reset Saved Answers</button>
+              <button id="export-verdict" class="button button-secondary" disabled>Export Verdict Workbook</button>
             </div>
+            <div class="action-note">Start with inventory, add usage if you have it, then export once the verdict table is ready.</div>
             <div class="helper-note">
               Best order to use AIR: import your inventory file first, preview the mapping if the spreadsheet is unusual, then optionally import daily usage for stronger demand analysis.
             </div>
@@ -1291,7 +1344,7 @@ def _dashboard_html() -> str:
               </div>
               <p style="color: var(--muted); margin: 0;">AIR needs your operating answers before it gives the final recommendation set. It will also ask if there is anything else you would like it to know, like spoiled arrivals or frequent claims.</p>
               <form id="question-form" class="question-grid"></form>
-              <div class="actions">
+              <div class="actions single-action">
                 <button id="save-assumptions" class="button button-primary" type="button">Save Answers</button>
               </div>
             </section>
