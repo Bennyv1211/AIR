@@ -4,6 +4,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_data_store_path, load_env_file
 from app.models import (
@@ -37,6 +38,7 @@ app = FastAPI(
     description="Artificial Intelligence Replenisher MVP",
     version="0.1.0",
 )
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 store = JsonDataStore(get_data_store_path())
 
@@ -351,32 +353,34 @@ def _dashboard_html() -> str:
     .brand {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 16px;
+      min-width: 0;
+      flex: 1 1 auto;
     }
 
-    .brand-mark {
-      width: 48px;
-      height: 48px;
-      display: grid;
-      place-items: center;
-      border-radius: 16px;
-      background: linear-gradient(135deg, var(--accent) 0%, #2f8473 100%);
-      color: #fff7ef;
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: 0.08em;
-      box-shadow: var(--shadow-soft);
+    .brand-logo {
+      width: min(360px, 100%);
+      height: auto;
+      display: block;
+      flex: 0 1 360px;
+      object-fit: contain;
+    }
+
+    .brand-copy {
+      min-width: 0;
     }
 
     .brand-copy strong {
       display: block;
       font-size: 18px;
       letter-spacing: 0.02em;
+      line-height: 1.1;
     }
 
     .brand-copy span {
       color: var(--muted);
       font-size: 12px;
+      line-height: 1.35;
     }
 
     .topbar-meta {
@@ -385,6 +389,7 @@ def _dashboard_html() -> str:
       gap: 10px;
       flex-wrap: wrap;
       justify-content: flex-end;
+      flex: 0 0 auto;
     }
 
     .meta-pill {
@@ -1194,6 +1199,9 @@ def _dashboard_html() -> str:
       .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .app-shell { width: min(100% - 12px, 1380px); margin: 6px auto; padding: 10px; }
       .topbar { padding: 12px; }
+      .brand { flex-direction: column; align-items: flex-start; }
+      .brand-logo { width: min(320px, 100%); }
+      .topbar-meta { justify-content: flex-start; }
       th:nth-child(3), td:nth-child(3),
       th:nth-child(4), td:nth-child(4) { display: none; }
     }
@@ -1203,7 +1211,7 @@ def _dashboard_html() -> str:
   <main class="app-shell">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark">AIR</div>
+        <img class="brand-logo" src="/static/air-logo.png" alt="AIR logo" />
         <div class="brand-copy">
           <strong>Artificial Intelligence Replenisher</strong>
           <span>Inventory planning workspace for smarter replenishment decisions</span>
