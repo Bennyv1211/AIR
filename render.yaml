@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: air-replenisher
+    runtime: python
+    plan: free
+    buildCommand: pip install -e .
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.11
+      - key: OPENAI_MODEL
+        value: gpt-5.6-luna
+      - key: AIR_ENABLE_AI_PLANNING
+        value: "true"
+      - key: AIR_DATA_PATH
+        value: /opt/render/project/src/data/air_store.json
+      - key: OPENAI_API_KEY
+        sync: false

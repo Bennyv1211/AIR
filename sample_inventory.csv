@@ -1,0 +1,5 @@
+sku,name,current_stock,daily_demand,lead_time_days,safety_stock,min_order_qty
+SKU-1001,Widget A,18,5,4,10,20
+SKU-1002,Widget B,3,2,6,6,12
+SKU-1003,Widget C,0,4,5,8,15
+SKU-1004,Widget D,60,3,7,12,25

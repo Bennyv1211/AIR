@@ -1,0 +1,50 @@
+{
+  "source": "origin-test",
+  "records": [
+    {
+      "sku": "SKU-7001",
+      "name": "Usage Driven Item",
+      "current_stock": 30,
+      "daily_demand": 2.0,
+      "lead_time_days": 7,
+      "safety_stock": 0,
+      "min_order_qty": 0,
+      "incoming_stock": 0
+    }
+  ],
+  "inventory_metadata": {
+    "source": "origin-test",
+    "mapping_origin": "heuristic",
+    "mapped_with_ai": false
+  },
+  "usage_source": "origin-usage",
+  "usage_records": [
+    {
+      "sku": "SKU-7001",
+      "usage_date": "2026-08-20",
+      "units_used": 8.0
+    },
+    {
+      "sku": "SKU-7001",
+      "usage_date": "2026-08-21",
+      "units_used": 9.0
+    }
+  ],
+  "usage_metadata": {
+    "source": "origin-usage",
+    "mapping_origin": "heuristic",
+    "mapped_with_ai": false
+  },
+  "assumptions": {
+    "shipping_days_per_week": 5,
+    "arrival_days": [
+      "Monday",
+      "Wednesday",
+      "Friday"
+    ],
+    "default_spoilage_days": null,
+    "produce_spoilage_days": null,
+    "herb_spoilage_days": null,
+    "additional_notes": ""
+  }
+}
