@@ -44,10 +44,14 @@ def build_recommendation(
     order_cycle_days = _order_cycle_days(assumptions)
     spoilage_limit_days = _spoilage_limit_days(record, assumptions)
     zero_demand = refined_daily_demand <= 0
-    cycle_coverage_days = max(effective_lead_time, order_cycle_days)
-    demand_during_cycle = ceil(refined_daily_demand * cycle_coverage_days)
-    reorder_point = demand_during_cycle + record.safety_stock
-    target_stock = reorder_point
+    # The reorder point is the lean trigger: demand while a new order is arriving,
+    # plus the explicitly supplied safety stock. The target can cover the next cycle.
+    reorder_point = ceil(refined_daily_demand * effective_lead_time) + record.safety_stock
+    target_coverage_days = max(effective_lead_time, order_cycle_days)
+    target_stock = ceil(refined_daily_demand * target_coverage_days) + record.safety_stock
+    if spoilage_limit_days is not None:
+        spoilage_target = ceil(refined_daily_demand * spoilage_limit_days) + record.safety_stock
+        target_stock = min(target_stock, max(reorder_point, spoilage_target))
     stock_gap = max(target_stock - effective_stock, 0)
     needs_reorder = effective_stock < reorder_point if not zero_demand else effective_stock < record.safety_stock
     recommended_order_qty = max(record.min_order_qty, stock_gap) if needs_reorder else 0
@@ -83,7 +87,7 @@ def build_recommendation(
             demand_source=demand_source,
             effective_lead_time=effective_lead_time,
             order_cycle_days=order_cycle_days,
-            cycle_coverage_days=cycle_coverage_days,
+            target_coverage_days=target_coverage_days,
             spoilage_limit_days=spoilage_limit_days,
         ),
     )
@@ -140,7 +144,7 @@ def _build_explanation(
     demand_source: str,
     effective_lead_time: int,
     order_cycle_days: int,
-    cycle_coverage_days: int,
+    target_coverage_days: int,
     spoilage_limit_days: int | None,
 ) -> str:
     incoming_note = (
@@ -153,10 +157,14 @@ def _build_explanation(
     )
     lead_time_note = f" AIR used an effective lead time of {effective_lead_time} day(s)."
     review_note = f" AIR used a delivery cycle of about {order_cycle_days} day(s) between replenishment opportunities."
-    cycle_note = (
-        f" AIR set the reorder threshold from about {cycle_coverage_days} day(s) of demand plus safety stock."
+    reorder_note = (
+        f" AIR set the reorder point from {effective_lead_time} day(s) of demand plus safety stock, "
+        "so it does not include an unnecessary extra ordering cycle."
     )
-    sizing_note = " AIR sized the recommendation for the current delivery cycle only so the next order can be reassessed later."
+    sizing_note = (
+        f" AIR sized the order toward about {target_coverage_days} day(s) of coverage for the current "
+        "delivery cycle only, then reassesses next time."
+    )
     zero_demand_note = (
         " AIR detected no active demand for this item in the current dataset."
         if refined_daily_demand <= 0
@@ -182,14 +190,14 @@ def _build_explanation(
             f"Reorder now. {record.name} is at priority {priority} because current stock "
             f"plus incoming inventory ({effective_stock}) is below the reorder point "
             f"({reorder_point}). {stockout_window} Recommended order quantity: "
-            f"{recommended_order_qty}.{incoming_note} {demand_note}{lead_time_note} {review_note} {cycle_note} {sizing_note} "
+            f"{recommended_order_qty}.{incoming_note} {demand_note}{lead_time_note} {review_note} {reorder_note} {sizing_note} "
             f"{spoilage_note}{zero_demand_note}{notes_note}"
         )
 
     return (
         f"No immediate reorder needed. {record.name} is above the reorder point "
         f"({reorder_point}) with an effective stock position of {effective_stock}.{incoming_note} "
-        f"{demand_note}{lead_time_note} {review_note} {cycle_note} {sizing_note} {spoilage_note}{zero_demand_note}{notes_note}"
+        f"{demand_note}{lead_time_note} {review_note} {reorder_note} {sizing_note} {spoilage_note}{zero_demand_note}{notes_note}"
     )
 
 

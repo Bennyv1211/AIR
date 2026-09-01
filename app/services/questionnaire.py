@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from app.models import AnalysisQuestion, BusinessAssumptions, ReplenishmentRecord
 
 WEEKDAY_OPTIONS = [
@@ -155,4 +157,4 @@ def classify_item(record: ReplenishmentRecord) -> str:
 
 def _matches_keywords(text: str, keywords: set[str]) -> bool:
     lowered = text.lower()
-    return any(keyword in lowered for keyword in keywords)
+    return any(re.search(rf"\b{re.escape(keyword)}\b", lowered) for keyword in keywords)

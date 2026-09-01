@@ -1,4 +1,5 @@
 from app.models import BusinessAssumptions, ReplenishmentRecord
+from app.services.questionnaire import classify_item
 from app.services.replenisher import build_recommendation, build_recommendations
 
 
@@ -122,8 +123,9 @@ def test_build_recommendation_lets_usage_history_drive_demand_when_available() -
     recommendation = build_recommendation(record, {"SKU-USAGE-FIRST": 7})
 
     assert recommendation.demand_source == "daily-usage history"
-    assert recommendation.reorder_point >= 53
-    assert recommendation.needs_reorder is True
+    assert recommendation.reorder_point == 18
+    assert recommendation.target_stock == 53
+    assert recommendation.needs_reorder is False
 
 
 def test_build_recommendation_handles_zero_demand_without_failing() -> None:
@@ -223,7 +225,7 @@ def test_build_recommendation_skips_order_when_effective_stock_covers_cycle_and_
 
     recommendation = build_recommendation(record)
 
-    assert recommendation.reorder_point == 120
+    assert recommendation.reorder_point == 43
     assert recommendation.needs_reorder is False
     assert recommendation.recommended_order_qty == 0
     assert "No immediate reorder needed." in recommendation.explanation
@@ -246,7 +248,39 @@ def test_build_recommendation_sizes_order_for_current_delivery_cycle_only() -> N
 
     recommendation = build_recommendation(record, assumptions=assumptions)
 
-    assert recommendation.reorder_point == 35
+    assert recommendation.reorder_point == 15
     assert recommendation.target_stock == 35
     assert recommendation.recommended_order_qty == 30
     assert "current delivery cycle only" in recommendation.explanation
+
+
+def test_reorder_point_does_not_include_the_full_delivery_cycle() -> None:
+    record = ReplenishmentRecord(
+        sku="SKU-LEAN-ROP",
+        name="Lean Reorder Point",
+        current_stock=25,
+        daily_demand=5,
+        lead_time_days=2,
+        safety_stock=4,
+        min_order_qty=0,
+        incoming_stock=0,
+    )
+    assumptions = BusinessAssumptions(shipping_days_per_week=2)
+
+    recommendation = build_recommendation(record, assumptions=assumptions)
+
+    assert recommendation.reorder_point == 14
+    assert recommendation.target_stock == 24
+    assert recommendation.needs_reorder is False
+
+
+def test_item_classification_does_not_match_keywords_inside_other_words() -> None:
+    record = ReplenishmentRecord(
+        sku="SKU-NOT-SAGE",
+        name="Usage First Item",
+        current_stock=1,
+        daily_demand=1,
+        lead_time_days=1,
+    )
+
+    assert classify_item(record) == "uncertain"
