@@ -293,7 +293,7 @@ def test_export_returns_excel_file_when_verdict_is_ready() -> None:
     )
     assert "attachment;" in response.headers["content-disposition"]
     workbook = load_workbook(BytesIO(response.content))
-    assert workbook.sheetnames == ["Summary", "Verdict Detail", "Assumptions & Inputs"]
+    assert workbook.sheetnames == ["Summary", "Verdict Detail", "Assumptions & Inputs", "PO Import Template"]
     assert workbook["Summary"]["A1"].value == "AIR Verdict Summary"
     assert workbook["Summary"]["D4"].value == "SKU Number"
     assert workbook["Verdict Detail"]["A1"].value == "SKU Number"
@@ -303,6 +303,17 @@ def test_export_returns_excel_file_when_verdict_is_ready() -> None:
     assert workbook["Assumptions & Inputs"]["B5"].value == "Monday, Wednesday, Friday"
     assert workbook["Assumptions & Inputs"]["B6"].value == "Monday, Wednesday, Friday"
     assert workbook["Assumptions & Inputs"]["B10"].value == "Export test context."
+    po_sheet = workbook["PO Import Template"]
+    assert [po_sheet.cell(row=1, column=index).value for index in range(1, 5)] == [
+        "PUNO",
+        "ITNO",
+        "ORQA",
+        "PUPR",
+    ]
+    assert po_sheet["A3"].value is None
+    assert po_sheet["B3"].value == "SKU-6001"
+    assert po_sheet["C3"].value > 0
+    assert po_sheet["D3"].value is None
 
 
 def test_recommendations_show_usage_mapping_origin_when_usage_file_is_loaded() -> None:

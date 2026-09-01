@@ -15,6 +15,13 @@ PRIORITY_FILLS = {
     "medium": PatternFill(fill_type="solid", fgColor="DCEAFF"),
     "low": PatternFill(fill_type="solid", fgColor="DDEEDB"),
 }
+PO_IMPORT_HEADERS = ["PUNO", "ITNO", "ORQA", "PUPR"]
+PO_IMPORT_DESCRIPTIONS = [
+    "*Purchase order number(10)",
+    "*Item number(15)",
+    "*Ordered quantity - alternate U/M(17)",
+    "Purchase price(19)",
+]
 
 
 def build_recommendations_workbook(
@@ -26,10 +33,12 @@ def build_recommendations_workbook(
     summary_sheet.title = "Summary"
     detail_sheet = workbook.create_sheet("Verdict Detail")
     assumptions_sheet = workbook.create_sheet("Assumptions & Inputs")
+    po_import_sheet = workbook.create_sheet("PO Import Template")
 
     _build_summary_sheet(summary_sheet, recommendations)
     _build_detail_sheet(detail_sheet, recommendations)
     _build_assumptions_sheet(assumptions_sheet, assumptions)
+    _build_po_import_sheet(po_import_sheet, recommendations)
 
     output = BytesIO()
     workbook.save(output)
@@ -188,3 +197,24 @@ def _build_assumptions_sheet(sheet, assumptions: BusinessAssumptions) -> None:
 
     for row in sheet.iter_rows(min_row=4, max_col=2):
         row[1].alignment = Alignment(wrap_text=True, vertical="top")
+
+
+def _build_po_import_sheet(sheet, recommendations: list[Recommendation]) -> None:
+    """Create an M3-style PO import tab from the supplied upload template."""
+    sheet.append(PO_IMPORT_HEADERS)
+    sheet.append(PO_IMPORT_DESCRIPTIONS)
+
+    for item in recommendations:
+        if item.needs_reorder and item.recommended_order_qty > 0:
+            # Leave PO number and purchase price blank so this tab can be completed upstream.
+            sheet.append(["", item.sku, item.recommended_order_qty, ""])
+
+    for cell in sheet[1]:
+        cell.font = Font(bold=True)
+        cell.fill = HEADER_FILL
+    for cell in sheet[2]:
+        cell.font = Font(italic=True, color="5A6A63")
+
+    for column, width in {"A": 30, "B": 20, "C": 34, "D": 22}.items():
+        sheet.column_dimensions[column].width = width
+    sheet.freeze_panes = "A3"
