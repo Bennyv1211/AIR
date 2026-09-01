@@ -22,16 +22,16 @@ def test_dashboard_contains_import_button() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Import Inventory" in response.text
-    assert "Import Daily Usage" in response.text
-    assert "Preview Inventory Mapping" in response.text
-    assert "Preview Usage Mapping" in response.text
+    assert "Analyze Inventory" in response.text
+    assert "Analyze Usage Trends" in response.text
+    assert "Preview Inventory Columns" in response.text
+    assert "Preview Usage Columns" in response.text
     assert "Questions Before Final Verdict" in response.text
     assert "anything else you would like it to know" in response.text.lower()
-    assert "Export Verdict" in response.text
-    assert "Clear Saved Memory" in response.text
+    assert "Export Verdict Workbook" in response.text
+    assert "Reset Saved Answers" in response.text
     assert 'type="file"' in response.text
-    assert "optional daily usage file" in response.text
+    assert "weekly LW/CW sales report" in response.text
 
 
 def test_ingest_file_endpoint_accepts_csv_upload() -> None:

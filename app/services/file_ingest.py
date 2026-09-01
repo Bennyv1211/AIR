@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import re
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from difflib import SequenceMatcher
 from io import BytesIO, StringIO
 from pathlib import Path
@@ -60,6 +60,8 @@ HEADER_ALIASES = {
         "avgsalesday",
         "avgdailyunits",
         "dailyrunrate",
+        "dailyaveragesales",
+        "averagedailysales",
     },
     "lead_time_days": {
         "leadtime",
@@ -119,6 +121,8 @@ USAGE_HEADER_ALIASES = {
         "qtysold",
         "quantitysold",
         "consumption",
+        "dailyaveragesales",
+        "averagedailysales",
     },
 }
 
@@ -144,6 +148,30 @@ WEEKLY_DEMAND_PATTERNS = (
     (re.compile(r"^4week$"), 28),
     (re.compile(r"^4weeksales$"), 28),
     (re.compile(r"^4wksales$"), 28),
+)
+
+WEEKDAY_INDEXES = {
+    "mon": 0,
+    "monday": 0,
+    "tue": 1,
+    "tues": 1,
+    "tuesday": 1,
+    "wed": 2,
+    "wednesday": 2,
+    "thu": 3,
+    "thur": 3,
+    "thurs": 3,
+    "thursday": 3,
+    "fri": 4,
+    "friday": 4,
+    "sat": 5,
+    "saturday": 5,
+    "sun": 6,
+    "sunday": 6,
+}
+
+WEEKLY_USAGE_PATTERN = re.compile(
+    r"^(?P<week>lw|lastweek|cw|currentweek)(?P<day>mon|monday|tue|tues|tuesday|wed|wednesday|thu|thur|thurs|thursday|fri|friday|sat|saturday|sun|sunday)$"
 )
 
 
@@ -280,8 +308,12 @@ def _parse_rows(
             "from headers like daily demand, last week, 1wk, 2wk, 3wk, or 4wk."
         )
 
+    data_rows = _rows_with_sku(rows, inferred_headers["sku"])
+    if not data_rows:
+        raise ValueError(f"{source_type} file does not contain any item rows.")
+
     records: list[ReplenishmentRecord] = []
-    for index, row in enumerate(rows, start=2):
+    for index, row in enumerate(data_rows, start=2):
         try:
             records.append(
                 ReplenishmentRecord(
@@ -318,14 +350,32 @@ def _parse_usage_rows(
 
     headers = _headers_from_rows(rows)
     inferred_headers, sources = _resolve_headers(headers, "usage")
-    missing = [field for field in ("sku", "usage_date", "units_used") if field not in inferred_headers]
-    if missing:
+    weekly_columns = _weekly_usage_columns(headers)
+    has_transaction_usage = all(
+        field in inferred_headers for field in ("sku", "usage_date", "units_used")
+    )
+    has_weekly_usage = "sku" in inferred_headers and bool(weekly_columns)
+    has_daily_average = "sku" in inferred_headers and "units_used" in inferred_headers
+
+    if not (has_transaction_usage or has_weekly_usage or has_daily_average):
+        missing = [field for field in ("sku", "usage_date", "units_used") if field not in inferred_headers]
         raise ValueError(
-            f"{source_type} file is missing recognizable usage columns for: {', '.join(missing)}"
+            f"{source_type} file is missing recognizable usage columns for: {', '.join(missing)}. "
+            "AIR also accepts weekly movement headers such as LW Mon, LW Tue, CW Mon, and CW Tue."
         )
 
+    data_rows = _rows_with_sku(rows, inferred_headers["sku"])
+    if not data_rows:
+        raise ValueError(f"{source_type} file does not contain any item rows.")
+
+    if has_weekly_usage:
+        return _parse_weekly_usage_rows(data_rows, inferred_headers["sku"], weekly_columns, sources)
+
+    if has_daily_average and "usage_date" not in inferred_headers:
+        return _parse_daily_average_rows(data_rows, inferred_headers, sources)
+
     usage_records: list[UsageRecord] = []
-    for index, row in enumerate(rows, start=2):
+    for index, row in enumerate(data_rows, start=2):
         try:
             usage_records.append(
                 UsageRecord(
@@ -338,6 +388,80 @@ def _parse_usage_rows(
             raise ValueError(f"{source_type} row {index} contains invalid usage values: {error}") from error
 
     return usage_records, _metadata_from_sources(sources)
+
+
+def _parse_weekly_usage_rows(
+    rows: list[dict[str, str]],
+    sku_header: str,
+    weekly_columns: list[tuple[str, str, int]],
+    sources: dict[str, str],
+) -> tuple[list[UsageRecord], DatasetImportMetadata]:
+    """Turn a weekly sales snapshot into dated daily observations for trend analysis."""
+    current_columns = [column for column in weekly_columns if column[1] == "current"]
+    latest_current_day = _latest_active_current_day(rows, current_columns)
+    today = date.today()
+    current_week_start = today - timedelta(days=today.weekday())
+    last_week_start = current_week_start - timedelta(days=7)
+
+    usage_records: list[UsageRecord] = []
+    for row_index, row in enumerate(rows, start=2):
+        try:
+            sku = _read_text(row, sku_header)
+            for header, week, weekday_index in weekly_columns:
+                if week == "current" and (
+                    latest_current_day is None or weekday_index > latest_current_day
+                ):
+                    continue
+                raw_value = row.get(header, "")
+                if _is_blank(raw_value):
+                    continue
+                week_start = current_week_start if week == "current" else last_week_start
+                usage_records.append(
+                    UsageRecord(
+                        sku=sku,
+                        usage_date=week_start + timedelta(days=weekday_index),
+                        units_used=max(_to_float(raw_value), 0.0),
+                    )
+                )
+        except ValueError as error:
+            raise ValueError(
+                f"Weekly usage row {row_index} contains invalid values: {error}"
+            ) from error
+
+    if not usage_records:
+        raise ValueError("Weekly usage columns were found, but they do not contain any usable sales data.")
+    sources = {**sources, "usage_date": "heuristic", "units_used": "heuristic"}
+    return usage_records, _metadata_from_sources(sources)
+
+
+def _parse_daily_average_rows(
+    rows: list[dict[str, str]],
+    inferred_headers: dict[str, str],
+    sources: dict[str, str],
+) -> tuple[list[UsageRecord], DatasetImportMetadata]:
+    """Use a supplied daily average when a report does not include individual dates."""
+    usage_records: list[UsageRecord] = []
+    for row_index, row in enumerate(rows, start=2):
+        try:
+            usage_records.append(
+                UsageRecord(
+                    sku=_read_text(row, inferred_headers["sku"]),
+                    usage_date=date.today(),
+                    units_used=max(_to_float(row.get(inferred_headers["units_used"], "")), 0.0),
+                )
+            )
+        except ValueError as error:
+            raise ValueError(
+                f"Daily average row {row_index} contains invalid values: {error}"
+            ) from error
+
+    sources = {**sources, "usage_date": "heuristic"}
+    return usage_records, _metadata_from_sources(sources)
+
+
+def _rows_with_sku(rows: list[dict[str, str]], sku_header: str) -> list[dict[str, str]]:
+    """Exclude export totals and separator rows that do not represent an item."""
+    return [row for row in rows if not _is_blank(row.get(sku_header))]
 
 
 def _infer_headers(
@@ -380,6 +504,7 @@ def _resolve_headers(
 
 def _preview_mappings(headers: list[str], dataset_kind: str) -> list[FileMappingPreview]:
     resolved, sources = _resolve_headers(headers, dataset_kind)
+    weekly_columns = _weekly_usage_columns(headers) if dataset_kind == "usage" else []
     field_names = (
         [
             "sku",
@@ -397,6 +522,9 @@ def _preview_mappings(headers: list[str], dataset_kind: str) -> list[FileMapping
     previews: list[FileMappingPreview] = []
     for field in field_names:
         header = resolved.get(field)
+        if dataset_kind == "usage" and weekly_columns and field in {"usage_date", "units_used"}:
+            header = "Weekly movement columns (LW / CW by day)"
+            sources = {**sources, field: "heuristic"}
         previews.append(
             FileMappingPreview(
                 field=field,
@@ -434,6 +562,36 @@ def _weekly_demand_columns(headers: list[str]) -> list[tuple[str, int]]:
                 weekly_headers.append((header, days))
                 break
     return weekly_headers
+
+
+def _weekly_usage_columns(headers: list[str]) -> list[tuple[str, str, int]]:
+    columns: list[tuple[str, str, int]] = []
+    for header in headers:
+        match = WEEKLY_USAGE_PATTERN.match(_normalize_header(header))
+        if not match:
+            continue
+        week = "last" if match.group("week") in {"lw", "lastweek"} else "current"
+        columns.append((header, week, WEEKDAY_INDEXES[match.group("day")]))
+    return sorted(columns, key=lambda column: (column[1] == "current", column[2]))
+
+
+def _latest_active_current_day(
+    rows: list[dict[str, str]],
+    current_columns: list[tuple[str, str, int]],
+) -> int | None:
+    active_days: list[int] = []
+    for header, _, weekday_index in current_columns:
+        for row in rows:
+            raw_value = row.get(header, "")
+            if _is_blank(raw_value):
+                continue
+            try:
+                if _to_float(raw_value) != 0:
+                    active_days.append(weekday_index)
+                    break
+            except ValueError:
+                continue
+    return max(active_days) if active_days else None
 
 
 def _read_daily_demand(

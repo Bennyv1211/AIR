@@ -1258,7 +1258,7 @@ def _dashboard_html() -> str:
           <article class="workflow-card">
             <div class="workflow-step">1</div>
             <strong>Upload your files</strong>
-            <span>Start with inventory, then optionally add daily usage history to improve trend accuracy.</span>
+              <span>Start with inventory, then add daily usage or a weekly LW/CW sales report to improve trend accuracy.</span>
           </article>
           <article class="workflow-card">
             <div class="workflow-step">2</div>
@@ -1335,9 +1335,9 @@ def _dashboard_html() -> str:
             </div>
             <div class="action-note">Start with inventory, add usage if you have it, then export once the verdict table is ready.</div>
             <div class="helper-note">
-              Best order to use AIR: import your inventory file first, preview the mapping if the spreadsheet is unusual, then optionally import daily usage for stronger demand analysis.
+              Best order to use AIR: import your inventory file first, preview the mapping if the spreadsheet is unusual, then optionally import daily usage or a weekly LW/CW sales report for stronger demand analysis.
             </div>
-            <p class="status" id="status">Waiting for files. AIR can infer inventory columns like SKU, on hand, on order, and weekly sales labels. If an OpenAI API key is configured, AIR can also use semantic header understanding for messier spreadsheets. The optional daily usage file should include a SKU, a date, and units used or sold.</p>
+            <p class="status" id="status">Waiting for files. AIR can infer inventory columns like SKU, on hand, on order, and weekly sales labels. If an OpenAI API key is configured, AIR can also use semantic header understanding for messier spreadsheets. Daily usage can be transaction data with a SKU, date, and units, or a weekly sales report with columns like LW Mon through CW Sat.</p>
             <section id="preview-panel" class="preview-panel hidden">
               <div class="preview-title">
                 <strong id="preview-heading">Mapping preview</strong>

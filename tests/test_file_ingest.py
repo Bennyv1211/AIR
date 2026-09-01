@@ -7,6 +7,7 @@ from app.services.file_ingest import (
     parse_replenishment_file,
     parse_usage_file,
     preview_replenishment_file,
+    preview_usage_file,
 )
 
 
@@ -133,6 +134,38 @@ def test_parse_usage_file_requires_usage_fields() -> None:
 
     with pytest.raises(ValueError, match="missing recognizable usage columns"):
         parse_usage_file("usage.csv", content)
+
+
+def test_parse_usage_file_accepts_weekly_movement_report() -> None:
+    content = "\n".join(
+        [
+            "Item Number,Item Description,On Hand 001,On Order 001,LW Mon,LW Tue,LW Wed,LW Thu,LW Fri,LW Sat,LW Total,CW Mon,CW Tue,CW Wed,CW Thu,CW Fri,CW Sat,CW Total,Daily Average Sales",
+            "150100,Pumpkin,829.17,2700,274.54,483.63,154.9,273.12,222.5,173.3,1581.99,225.36,822.9,0,0,0,0,1048.26,219.19",
+        ]
+    ).encode("utf-8")
+
+    records = parse_usage_file("daily-usage-report.csv", content)
+
+    assert len(records) == 8
+    assert {record.sku for record in records} == {"150100"}
+    assert [record.units_used for record in records][-2:] == [225.36, 822.9]
+
+
+def test_preview_usage_file_identifies_weekly_movement_columns() -> None:
+    content = "\n".join(
+        [
+            "Item Number,LW Mon,LW Tue,CW Mon,CW Tue",
+            "150100,10,11,12,13",
+        ]
+    ).encode("utf-8")
+
+    preview = preview_usage_file("daily-usage-report.csv", content)
+
+    assert any(item.field == "sku" and item.header == "Item Number" for item in preview.mappings)
+    assert any(
+        item.field == "usage_date" and "Weekly movement" in (item.header or "")
+        for item in preview.mappings
+    )
 
 
 def test_preview_replenishment_file_shows_mapping_sources() -> None:
