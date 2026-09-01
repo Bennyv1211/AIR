@@ -180,6 +180,7 @@ def test_saving_assumptions_unlocks_final_verdict() -> None:
         "/analysis/assumptions",
         json={
             "shipping_days_per_week": 5,
+            "order_days": ["Monday", "Wednesday", "Friday"],
             "arrival_days": ["Monday", "Wednesday", "Friday"],
             "default_spoilage_days": 7,
             "produce_spoilage_days": 4,
@@ -198,6 +199,7 @@ def test_saving_partial_assumptions_keeps_previously_saved_answers() -> None:
         "/analysis/assumptions",
         json={
             "shipping_days_per_week": 5,
+            "order_days": ["Monday", "Wednesday", "Friday"],
             "arrival_days": ["Monday", "Wednesday", "Friday"],
         },
     )
@@ -212,6 +214,7 @@ def test_saving_partial_assumptions_keeps_previously_saved_answers() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["assumptions"]["shipping_days_per_week"] == 5
+    assert payload["assumptions"]["order_days"] == ["Monday", "Wednesday", "Friday"]
     assert payload["assumptions"]["arrival_days"] == ["Monday", "Wednesday", "Friday"]
     assert payload["assumptions"]["default_spoilage_days"] == 4
 
@@ -221,6 +224,7 @@ def test_reset_assumptions_clears_saved_memory() -> None:
         "/analysis/assumptions",
         json={
             "shipping_days_per_week": 5,
+            "order_days": ["Monday", "Wednesday", "Friday"],
             "arrival_days": ["Monday", "Wednesday", "Friday"],
             "default_spoilage_days": 4,
             "additional_notes": "Old planning memory.",
@@ -232,6 +236,7 @@ def test_reset_assumptions_clears_saved_memory() -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["assumptions"]["shipping_days_per_week"] is None
+    assert payload["assumptions"]["order_days"] == []
     assert payload["assumptions"]["arrival_days"] == []
     assert payload["assumptions"]["default_spoilage_days"] is None
     assert payload["assumptions"]["additional_notes"] == ""
@@ -274,6 +279,7 @@ def test_export_returns_excel_file_when_verdict_is_ready() -> None:
         "/analysis/assumptions",
         json={
             "shipping_days_per_week": 5,
+            "order_days": ["Monday", "Wednesday", "Friday"],
             "arrival_days": ["Monday", "Wednesday", "Friday"],
             "additional_notes": "Export test context.",
         },
@@ -295,7 +301,8 @@ def test_export_returns_excel_file_when_verdict_is_ready() -> None:
     assert workbook["Assumptions & Inputs"]["A1"].value == "AIR Planning Assumptions"
     assert workbook["Assumptions & Inputs"]["B4"].value == 5
     assert workbook["Assumptions & Inputs"]["B5"].value == "Monday, Wednesday, Friday"
-    assert workbook["Assumptions & Inputs"]["B9"].value == "Export test context."
+    assert workbook["Assumptions & Inputs"]["B6"].value == "Monday, Wednesday, Friday"
+    assert workbook["Assumptions & Inputs"]["B10"].value == "Export test context."
 
 
 def test_recommendations_show_usage_mapping_origin_when_usage_file_is_loaded() -> None:
@@ -327,6 +334,7 @@ def test_recommendations_show_usage_mapping_origin_when_usage_file_is_loaded() -
         "/analysis/assumptions",
         json={
             "shipping_days_per_week": 5,
+            "order_days": ["Monday", "Wednesday", "Friday"],
             "arrival_days": ["Monday", "Wednesday", "Friday"],
         },
     )

@@ -19,7 +19,7 @@ def test_build_analysis_questions_requests_shipping_arrival_and_spoilage_answers
     questions = build_analysis_questions(records, BusinessAssumptions())
 
     question_ids = {question.id for question in questions}
-    assert "shipping_days_per_week" in question_ids
+    assert "order_days" in question_ids
     assert "arrival_days" in question_ids
     assert "default_spoilage_days" not in question_ids
     assert "herb_spoilage_days" not in question_ids
@@ -106,7 +106,7 @@ def test_build_analysis_questions_hides_questions_after_required_answers_are_sav
         )
     ]
     assumptions = BusinessAssumptions(
-        shipping_days_per_week=5,
+        order_days=["Monday", "Wednesday", "Friday"],
         arrival_days=["Monday", "Wednesday", "Friday"],
     )
 
@@ -129,7 +129,7 @@ def test_build_analysis_questions_hides_optional_note_after_it_has_been_saved() 
         )
     ]
     assumptions = BusinessAssumptions(
-        shipping_days_per_week=5,
+        order_days=["Monday", "Wednesday", "Friday"],
         arrival_days=["Monday", "Wednesday", "Friday"],
         default_spoilage_days=4,
         additional_notes="Supplier substitutions happen often.",

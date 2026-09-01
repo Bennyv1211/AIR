@@ -80,12 +80,15 @@ def _planner_payload(
                 "rule_target_stock": recommendation.target_stock,
                 "rule_order_now": recommendation.recommended_order_qty,
                 "rule_priority": recommendation.priority,
+                "planned_order_date": recommendation.planned_order_date.isoformat() if recommendation.planned_order_date else None,
+                "planned_delivery_date": recommendation.planned_delivery_date.isoformat() if recommendation.planned_delivery_date else None,
                 "demand_source": recommendation.demand_source,
             }
         )
 
     assumption_payload = {
         "shipping_days_per_week": assumptions.shipping_days_per_week if assumptions else None,
+        "order_days": assumptions.order_days if assumptions else [],
         "arrival_days": assumptions.arrival_days if assumptions else [],
         "default_spoilage_days": assumptions.default_spoilage_days if assumptions else None,
         "produce_spoilage_days": assumptions.produce_spoilage_days if assumptions else None,

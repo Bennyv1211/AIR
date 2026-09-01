@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, timedelta
 from math import ceil
 
@@ -16,6 +17,14 @@ WEEKDAYS = {
     "Saturday": 5,
     "Sunday": 6,
 }
+
+
+@dataclass(frozen=True)
+class PlanningSchedule:
+    next_order_date: date
+    planned_delivery_date: date
+    incoming_arrival_date: date | None
+    next_delivery_gap_days: int
 
 
 def build_recommendations(
@@ -39,27 +48,67 @@ def build_recommendation(
 ) -> Recommendation:
     today = date.today()
     refined_daily_demand, demand_source = _refined_daily_demand(record, usage_overrides or {})
-    effective_stock = record.current_stock + record.incoming_stock
-    effective_lead_time = _effective_lead_time(today, record.lead_time_days, assumptions)
     order_cycle_days = _order_cycle_days(assumptions)
     spoilage_limit_days = _spoilage_limit_days(record, assumptions)
+    schedule = _planning_schedule(today, record.lead_time_days, assumptions, order_cycle_days)
+    schedule_enabled = bool(assumptions and assumptions.order_days and assumptions.arrival_days)
+    effective_lead_time = (
+        (schedule.planned_delivery_date - schedule.next_order_date).days
+        if schedule_enabled
+        else _effective_lead_time(today, record.lead_time_days, assumptions)
+    )
     zero_demand = refined_daily_demand <= 0
-    # The reorder point is the lean trigger: demand while a new order is arriving,
-    # plus the explicitly supplied safety stock. The target can cover the next cycle.
-    reorder_point = ceil(refined_daily_demand * effective_lead_time) + record.safety_stock
-    target_coverage_days = max(effective_lead_time, order_cycle_days)
+    delivery_horizon_days = (
+        (schedule.planned_delivery_date - today).days
+        if schedule_enabled
+        else effective_lead_time
+    )
+    # This threshold covers only the period until the planned delivery, not stock after it.
+    reorder_point = ceil(refined_daily_demand * delivery_horizon_days) + record.safety_stock
+    target_coverage_days = (
+        schedule.next_delivery_gap_days
+        if schedule_enabled
+        else max(effective_lead_time, order_cycle_days)
+    )
     target_stock = ceil(refined_daily_demand * target_coverage_days) + record.safety_stock
     if spoilage_limit_days is not None:
         spoilage_target = ceil(refined_daily_demand * spoilage_limit_days) + record.safety_stock
         target_stock = min(target_stock, max(reorder_point, spoilage_target))
-    stock_gap = max(target_stock - effective_stock, 0)
-    needs_reorder = effective_stock < reorder_point if not zero_demand else effective_stock < record.safety_stock
+    stock_at_planned_delivery = (
+        record.current_stock - (refined_daily_demand * delivery_horizon_days)
+        if schedule_enabled
+        else record.current_stock + record.incoming_stock
+    )
+    incoming_available_for_delivery = (
+        record.incoming_stock
+        if schedule.incoming_arrival_date is not None
+        and schedule.incoming_arrival_date <= schedule.planned_delivery_date
+        else 0
+    )
+    if schedule_enabled:
+        stock_at_planned_delivery += incoming_available_for_delivery
+    stock_gap = max(ceil(target_stock - stock_at_planned_delivery), 0)
+    needs_reorder = (
+        stock_gap > 0
+        if schedule_enabled
+        else stock_at_planned_delivery < reorder_point
+    ) and not zero_demand
     recommended_order_qty = max(record.min_order_qty, stock_gap) if needs_reorder else 0
-    days_until_stockout = _days_until_stockout(effective_stock, refined_daily_demand)
+    days_until_stockout = (
+        _days_until_stockout_with_incoming(
+            record.current_stock,
+            refined_daily_demand,
+            schedule.incoming_arrival_date,
+            record.incoming_stock,
+            today,
+        )
+        if schedule_enabled
+        else _days_until_stockout(record.current_stock + record.incoming_stock, refined_daily_demand)
+    )
     projected_stockout_date = (
         today + timedelta(days=days_until_stockout) if days_until_stockout is not None else None
     )
-    priority = _priority(effective_stock, reorder_point)
+    priority = _priority(max(ceil(stock_at_planned_delivery), 0), reorder_point)
 
     return Recommendation(
         sku=record.sku,
@@ -73,12 +122,16 @@ def build_recommendation(
         priority=priority,
         days_until_stockout=days_until_stockout,
         projected_stockout_date=projected_stockout_date,
+        planned_order_date=schedule.next_order_date if schedule_enabled else None,
+        planned_delivery_date=schedule.planned_delivery_date if schedule_enabled else None,
         demand_source=demand_source,
         explanation=_build_explanation(
             record=record,
             assumptions=assumptions,
-            effective_stock=effective_stock,
+            stock_at_planned_delivery=stock_at_planned_delivery,
+            incoming_available_for_delivery=incoming_available_for_delivery,
             reorder_point=reorder_point,
+            target_stock=target_stock,
             recommended_order_qty=recommended_order_qty,
             needs_reorder=needs_reorder,
             priority=priority,
@@ -87,6 +140,8 @@ def build_recommendation(
             demand_source=demand_source,
             effective_lead_time=effective_lead_time,
             order_cycle_days=order_cycle_days,
+            schedule=schedule,
+            schedule_enabled=schedule_enabled,
             target_coverage_days=target_coverage_days,
             spoilage_limit_days=spoilage_limit_days,
         ),
@@ -121,6 +176,24 @@ def _days_until_stockout(current_stock: int, daily_demand: float) -> int | None:
     return ceil(current_stock / daily_demand)
 
 
+def _days_until_stockout_with_incoming(
+    current_stock: int,
+    daily_demand: float,
+    incoming_arrival_date: date | None,
+    incoming_stock: int,
+    today: date,
+) -> int | None:
+    stockout_days = _days_until_stockout(current_stock, daily_demand)
+    if stockout_days is None or not incoming_stock or incoming_arrival_date is None:
+        return stockout_days
+
+    arrival_offset = (incoming_arrival_date - today).days
+    if arrival_offset > stockout_days:
+        return stockout_days
+    stock_after_arrival = max(current_stock - (daily_demand * arrival_offset), 0) + incoming_stock
+    return arrival_offset + _days_until_stockout(ceil(stock_after_arrival), daily_demand)
+
+
 def _refined_daily_demand(
     record: ReplenishmentRecord,
     usage_overrides: dict[str, float],
@@ -134,8 +207,10 @@ def _refined_daily_demand(
 def _build_explanation(
     record: ReplenishmentRecord,
     assumptions: BusinessAssumptions | None,
-    effective_stock: int,
+    stock_at_planned_delivery: float,
+    incoming_available_for_delivery: int,
     reorder_point: int,
+    target_stock: int,
     recommended_order_qty: int,
     needs_reorder: bool,
     priority: str,
@@ -144,22 +219,40 @@ def _build_explanation(
     demand_source: str,
     effective_lead_time: int,
     order_cycle_days: int,
+    schedule: PlanningSchedule,
+    schedule_enabled: bool,
     target_coverage_days: int,
     spoilage_limit_days: int | None,
 ) -> str:
-    incoming_note = (
-        f" AIR included {record.incoming_stock} unit(s) already on order in the analysis."
-        if record.incoming_stock
-        else ""
-    )
+    incoming_note = ""
+    if record.incoming_stock:
+        if incoming_available_for_delivery:
+            incoming_note = (
+                f" AIR counts {record.incoming_stock} unit(s) already on order only from "
+                f"{schedule.incoming_arrival_date.strftime('%A')}, when that delivery is expected."
+            )
+        else:
+            incoming_note = (
+                f" AIR does not count the {record.incoming_stock} unit(s) already on order before "
+                "the planned delivery because they are not yet available on the shelf."
+            )
     demand_note = (
         f" AIR used a refined demand rate of {refined_daily_demand:.2f} units/day from {demand_source}."
     )
     lead_time_note = f" AIR used an effective lead time of {effective_lead_time} day(s)."
-    review_note = f" AIR used a delivery cycle of about {order_cycle_days} day(s) between replenishment opportunities."
+    review_note = (
+        f" AIR plans this order for {schedule.next_order_date.strftime('%A')} and expects it to be "
+        f"available on {schedule.planned_delivery_date.strftime('%A')}."
+        if schedule_enabled
+        else f" AIR used a delivery cycle of about {order_cycle_days} day(s) between replenishment opportunities."
+    )
     reorder_note = (
-        f" AIR set the reorder point from {effective_lead_time} day(s) of demand plus safety stock, "
-        "so it does not include an unnecessary extra ordering cycle."
+        (
+            f" AIR set the reorder point from the {max((schedule.planned_delivery_date - date.today()).days, 0)} "
+            "day(s) until that planned delivery plus safety stock."
+            if schedule_enabled
+            else f" AIR set the reorder point from {effective_lead_time} day(s) of demand plus safety stock."
+        )
     )
     sizing_note = (
         f" AIR sized the order toward about {target_coverage_days} day(s) of coverage for the current "
@@ -188,15 +281,18 @@ def _build_explanation(
         )
         return (
             f"Reorder now. {record.name} is at priority {priority} because current stock "
-            f"plus incoming inventory ({effective_stock}) is below the reorder point "
-            f"({reorder_point}). {stockout_window} Recommended order quantity: "
+            f"is projected to have {max(ceil(stock_at_planned_delivery), 0)} unit(s) available at the planned delivery, "
+            f"below the target level "
+            f"({target_stock}). {stockout_window} Recommended order quantity: "
             f"{recommended_order_qty}.{incoming_note} {demand_note}{lead_time_note} {review_note} {reorder_note} {sizing_note} "
             f"{spoilage_note}{zero_demand_note}{notes_note}"
         )
 
+    no_order_intro = "No order is needed for the next planned cycle." if schedule_enabled else "No immediate reorder needed."
     return (
-        f"No immediate reorder needed. {record.name} is above the reorder point "
-        f"({reorder_point}) with an effective stock position of {effective_stock}.{incoming_note} "
+        f"{no_order_intro} {record.name} is projected to have "
+        f"{max(ceil(stock_at_planned_delivery), 0)} unit(s) available at the planned delivery, covering the target "
+        f"({target_stock}).{incoming_note} "
         f"{demand_note}{lead_time_note} {review_note} {reorder_note} {sizing_note} {spoilage_note}{zero_demand_note}{notes_note}"
     )
 
@@ -219,6 +315,52 @@ def _effective_lead_time(
         offset > 0 for offset in arrival_offsets
     ) else 7
     return base_lead_time + arrival_wait
+
+
+def _planning_schedule(
+    today: date,
+    base_lead_time: int,
+    assumptions: BusinessAssumptions | None,
+    fallback_cycle_days: int,
+) -> PlanningSchedule:
+    order_days = assumptions.order_days if assumptions else []
+    arrival_days = assumptions.arrival_days if assumptions else []
+    next_order_date = _next_scheduled_date(today, order_days) if order_days else today
+
+    if not arrival_days:
+        planned_delivery_date = next_order_date + timedelta(days=base_lead_time)
+        return PlanningSchedule(
+            next_order_date=next_order_date,
+            planned_delivery_date=planned_delivery_date,
+            incoming_arrival_date=today + timedelta(days=base_lead_time),
+            next_delivery_gap_days=fallback_cycle_days,
+        )
+
+    # A supplier delivery must occur on an allowed arrival day after the order lead time.
+    planned_delivery_date = _next_scheduled_date(
+        next_order_date + timedelta(days=base_lead_time), arrival_days
+    )
+    incoming_arrival_date = _next_scheduled_date(today, arrival_days)
+    following_delivery_date = _next_scheduled_date(
+        planned_delivery_date + timedelta(days=1), arrival_days
+    )
+    return PlanningSchedule(
+        next_order_date=next_order_date,
+        planned_delivery_date=planned_delivery_date,
+        incoming_arrival_date=incoming_arrival_date,
+        next_delivery_gap_days=(following_delivery_date - planned_delivery_date).days,
+    )
+
+
+def _next_scheduled_date(start: date, days: list[str]) -> date:
+    weekday_indexes = {WEEKDAYS[day] for day in days if day in WEEKDAYS}
+    if not weekday_indexes:
+        return start
+    for offset in range(8):
+        candidate = start + timedelta(days=offset)
+        if candidate.weekday() in weekday_indexes:
+            return candidate
+    return start
 
 
 def _spoilage_limit_days(

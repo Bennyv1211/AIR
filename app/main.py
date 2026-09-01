@@ -258,6 +258,7 @@ def _merge_assumptions(
             if incoming.shipping_days_per_week is not None
             else existing.shipping_days_per_week
         ),
+        order_days=incoming.order_days or existing.order_days,
         arrival_days=incoming.arrival_days or existing.arrival_days,
         default_spoilage_days=(
             incoming.default_spoilage_days
@@ -1421,6 +1422,7 @@ def _dashboard_html() -> str:
 
     let currentAssumptions = {
       shipping_days_per_week: null,
+      order_days: [],
       arrival_days: [],
       default_spoilage_days: null,
       produce_spoilage_days: null,
@@ -1542,6 +1544,7 @@ def _dashboard_html() -> str:
           <td>${item.reorder_point}</td>
           <td>${item.target_stock}</td>
           <td>${item.recommended_order_qty}</td>
+          <td>${item.planned_order_date ? `Order: ${item.planned_order_date}<br><span style="color: var(--muted);">Arrives: ${item.planned_delivery_date}</span>` : "Set order days"}</td>
           <td><span class="priority ${item.priority}">${item.priority}</span></td>
           <td>${item.projected_stockout_date || "Stable"}</td>
           <td class="explanation">${item.explanation}</td>
@@ -1558,6 +1561,7 @@ def _dashboard_html() -> str:
                 <th>Reorder Point</th>
                 <th>Target</th>
                 <th>Suggested Order</th>
+                <th>Order / Delivery</th>
                 <th>Priority</th>
                 <th>Stockout Date</th>
                 <th>Explanation</th>
@@ -1730,6 +1734,7 @@ def _dashboard_html() -> str:
       const formData = new FormData(questionForm);
       const payload = {
         shipping_days_per_week: _readOptionalNumber(formData.get("shipping_days_per_week")),
+        order_days: formData.getAll("order_days"),
         arrival_days: formData.getAll("arrival_days"),
         default_spoilage_days: _readOptionalNumber(formData.get("default_spoilage_days")),
         produce_spoilage_days: _readOptionalNumber(formData.get("produce_spoilage_days")),

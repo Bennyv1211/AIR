@@ -96,13 +96,14 @@ def build_analysis_questions(
     questions: list[AnalysisQuestion] = []
     has_uncertain_items = any(classify_item(record) == "uncertain" for record in records)
 
-    if assumptions.shipping_days_per_week is None:
+    if not assumptions.order_days:
         questions.append(
             AnalysisQuestion(
-                id="shipping_days_per_week",
-                prompt="How many days per week do you ship or receive replenishment orders?",
-                help_text="AIR uses this to understand how often you can replenish stock.",
-                input_type="number",
+                id="order_days",
+                prompt="Which days do you place supplier orders?",
+                help_text="AIR uses this to plan the next order day and protect stock until its delivery arrives.",
+                input_type="multiselect",
+                options=WEEKDAY_OPTIONS,
             )
         )
 

@@ -56,6 +56,7 @@ class UsageRecord(BaseModel):
 
 class BusinessAssumptions(BaseModel):
     shipping_days_per_week: int | None = Field(None, ge=1, le=7)
+    order_days: list[str] = Field(default_factory=list)
     arrival_days: list[str] = Field(default_factory=list)
     default_spoilage_days: int | None = Field(None, ge=0)
     produce_spoilage_days: int | None = Field(None, ge=0)
@@ -90,6 +91,8 @@ class Recommendation(BaseModel):
     priority: Literal["low", "medium", "high", "critical"]
     days_until_stockout: int | None
     projected_stockout_date: date | None
+    planned_order_date: date | None = None
+    planned_delivery_date: date | None = None
     demand_source: str
     ai_refined: bool = False
     ai_note: str = ""

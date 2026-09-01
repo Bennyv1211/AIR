@@ -1,6 +1,8 @@
+from datetime import date
+
 from app.models import BusinessAssumptions, ReplenishmentRecord
 from app.services.questionnaire import classify_item
-from app.services.replenisher import build_recommendation, build_recommendations
+from app.services.replenisher import _planning_schedule, build_recommendation, build_recommendations
 
 
 def test_build_recommendation_flags_reorder_and_uses_minimum_order_quantity() -> None:
@@ -284,3 +286,17 @@ def test_item_classification_does_not_match_keywords_inside_other_words() -> Non
     )
 
     assert classify_item(record) == "uncertain"
+
+
+def test_schedule_plans_order_and_existing_stock_across_delivery_dates() -> None:
+    assumptions = BusinessAssumptions(
+        order_days=["Thursday"],
+        arrival_days=["Sunday"],
+    )
+
+    schedule = _planning_schedule(date(2026, 8, 31), 0, assumptions, 7)
+
+    assert schedule.next_order_date == date(2026, 9, 3)
+    assert schedule.planned_delivery_date == date(2026, 9, 6)
+    assert schedule.incoming_arrival_date == date(2026, 9, 6)
+    assert schedule.next_delivery_gap_days == 7

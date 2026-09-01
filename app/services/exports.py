@@ -103,6 +103,8 @@ def _build_detail_sheet(sheet, recommendations: list[Recommendation]) -> None:
         "Reorder Point",
         "Target Stock",
         "Suggested Order",
+        "Planned Order Date",
+        "Planned Delivery Date",
         "Priority",
         "Stockout Date",
         "Demand Source",
@@ -123,13 +125,15 @@ def _build_detail_sheet(sheet, recommendations: list[Recommendation]) -> None:
                 item.reorder_point,
                 item.target_stock,
                 item.recommended_order_qty,
+                item.planned_order_date.isoformat() if item.planned_order_date else "",
+                item.planned_delivery_date.isoformat() if item.planned_delivery_date else "",
                 item.priority,
                 item.projected_stockout_date.isoformat() if item.projected_stockout_date else "",
                 item.demand_source,
                 item.explanation,
             ]
         )
-        priority_cell = sheet.cell(row=sheet.max_row, column=7)
+        priority_cell = sheet.cell(row=sheet.max_row, column=9)
         priority_cell.fill = PRIORITY_FILLS[item.priority]
 
     widths = {
@@ -139,16 +143,18 @@ def _build_detail_sheet(sheet, recommendations: list[Recommendation]) -> None:
         "D": 14,
         "E": 14,
         "F": 16,
-        "G": 12,
-        "H": 16,
-        "I": 18,
-        "J": 80,
+        "G": 16,
+        "H": 18,
+        "I": 12,
+        "J": 16,
+        "K": 18,
+        "L": 80,
     }
     for column, width in widths.items():
         sheet.column_dimensions[column].width = width
 
-    for row in sheet.iter_rows(min_row=2, max_col=10):
-        row[9].alignment = Alignment(wrap_text=True, vertical="top")
+    for row in sheet.iter_rows(min_row=2, max_col=12):
+        row[11].alignment = Alignment(wrap_text=True, vertical="top")
 
 
 def _build_assumptions_sheet(sheet, assumptions: BusinessAssumptions) -> None:
@@ -157,6 +163,7 @@ def _build_assumptions_sheet(sheet, assumptions: BusinessAssumptions) -> None:
 
     rows = [
         ("Shipping days per week", assumptions.shipping_days_per_week or ""),
+        ("Order days", ", ".join(assumptions.order_days) if assumptions.order_days else ""),
         ("Arrival days", ", ".join(assumptions.arrival_days) if assumptions.arrival_days else ""),
         ("Default spoilage days", assumptions.default_spoilage_days if assumptions.default_spoilage_days is not None else ""),
         ("Produce spoilage days", assumptions.produce_spoilage_days if assumptions.produce_spoilage_days is not None else ""),
