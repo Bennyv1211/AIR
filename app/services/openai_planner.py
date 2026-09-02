@@ -162,20 +162,17 @@ def _apply_ai_decisions(
             daily_demand_used,
             int(decision.get("order_now_units", recommendation.recommended_order_qty)),
         )
-        effective_stock = record.current_stock + record.incoming_stock
-        explanation = (
-            f"{recommendation.explanation} AI planning note: {str(decision.get('reason', '')).strip()}"
-            if str(decision.get("reason", "")).strip()
-            else recommendation.explanation
-        )
         ai_note = str(decision.get("reason", "")).strip()
+        explanation = _ai_final_explanation(recommendation.explanation, safe_qty, ai_note)
         refined.append(
             recommendation.model_copy(
                 update={
                     "recommended_order_qty": safe_qty,
                     "needs_reorder": safe_qty > 0,
                     "stock_gap": safe_qty if safe_qty > 0 else 0,
-                    "target_stock": effective_stock + safe_qty,
+                    # Preserve the rules-based target. An AI review changes the current order,
+                    # not the meaning of the target-stock column.
+                    "priority": recommendation.priority if safe_qty > 0 else "low",
                     "ai_refined": safe_qty != recommendation.recommended_order_qty or bool(ai_note),
                     "ai_note": ai_note,
                     "explanation": explanation,
@@ -184,6 +181,25 @@ def _apply_ai_decisions(
         )
 
     return refined
+
+
+def _ai_final_explanation(baseline: str, order_qty: int, ai_note: str) -> str:
+    if order_qty > 0:
+        decision = f"Final decision: reorder {order_qty} unit(s) for the current cycle."
+    else:
+        decision = "Final decision: no order is needed for the current cycle."
+
+    for prefix in (
+        "Reorder now.",
+        "No immediate reorder needed.",
+        "No order is needed for the next planned cycle.",
+    ):
+        if baseline.startswith(prefix):
+            baseline = baseline[len(prefix):].lstrip()
+            break
+
+    note = f" AI planning note: {ai_note}" if ai_note else ""
+    return f"{decision} {baseline}{note}".strip()
 
 
 def _safe_ai_order_qty(
