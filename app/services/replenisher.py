@@ -125,6 +125,7 @@ def build_recommendation(
         planned_order_date=schedule.next_order_date if schedule_enabled else None,
         planned_delivery_date=schedule.planned_delivery_date if schedule_enabled else None,
         demand_source=demand_source,
+        supplier_code=record.supplier_code,
         explanation=_build_explanation(
             record=record,
             assumptions=assumptions,

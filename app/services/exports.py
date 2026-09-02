@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from io import BytesIO
+import re
 
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -33,12 +35,11 @@ def build_recommendations_workbook(
     summary_sheet.title = "Summary"
     detail_sheet = workbook.create_sheet("Verdict Detail")
     assumptions_sheet = workbook.create_sheet("Assumptions & Inputs")
-    po_import_sheet = workbook.create_sheet("PO Import Template")
 
     _build_summary_sheet(summary_sheet, recommendations)
     _build_detail_sheet(detail_sheet, recommendations)
     _build_assumptions_sheet(assumptions_sheet, assumptions)
-    _build_po_import_sheet(po_import_sheet, recommendations)
+    _build_po_import_sheets(workbook, recommendations)
 
     output = BytesIO()
     workbook.save(output)
@@ -199,15 +200,32 @@ def _build_assumptions_sheet(sheet, assumptions: BusinessAssumptions) -> None:
         row[1].alignment = Alignment(wrap_text=True, vertical="top")
 
 
+def _build_po_import_sheets(workbook, recommendations: list[Recommendation]) -> None:
+    grouped_items: dict[str, list[Recommendation]] = defaultdict(list)
+    for item in recommendations:
+        if item.needs_reorder and item.recommended_order_qty > 0:
+            grouped_items[item.supplier_code or "Unassigned"].append(item)
+
+    if not grouped_items:
+        _build_po_import_sheet(workbook.create_sheet("PO Import Template"), [])
+        return
+
+    used_titles: set[str] = set()
+    for supplier_code, items in grouped_items.items():
+        title = "PO Import Template" if supplier_code == "Unassigned" else _po_sheet_title(supplier_code)
+        title = _unique_sheet_title(title, used_titles)
+        used_titles.add(title)
+        _build_po_import_sheet(workbook.create_sheet(title), items)
+
+
 def _build_po_import_sheet(sheet, recommendations: list[Recommendation]) -> None:
     """Create an M3-style PO import tab from the supplied upload template."""
     sheet.append(PO_IMPORT_HEADERS)
     sheet.append(PO_IMPORT_DESCRIPTIONS)
 
     for item in recommendations:
-        if item.needs_reorder and item.recommended_order_qty > 0:
-            # Leave PO number and purchase price blank so this tab can be completed upstream.
-            sheet.append(["", item.sku, item.recommended_order_qty, ""])
+        # Leave PO number and purchase price blank so this tab can be completed upstream.
+        sheet.append(["", item.sku, item.recommended_order_qty, ""])
 
     for cell in sheet[1]:
         cell.font = Font(bold=True)
@@ -218,3 +236,19 @@ def _build_po_import_sheet(sheet, recommendations: list[Recommendation]) -> None
     for column, width in {"A": 30, "B": 20, "C": 34, "D": 22}.items():
         sheet.column_dimensions[column].width = width
     sheet.freeze_panes = "A3"
+
+
+def _po_sheet_title(supplier_code: str) -> str:
+    safe_code = re.sub(r"[\\/*?:\[\]]", "-", supplier_code).strip() or "Unassigned"
+    return f"PO - {safe_code}"[:31]
+
+
+def _unique_sheet_title(title: str, used_titles: set[str]) -> str:
+    if title not in used_titles:
+        return title
+    suffix = 2
+    while True:
+        candidate = f"{title[:28]}-{suffix}"
+        if candidate not in used_titles:
+            return candidate
+        suffix += 1

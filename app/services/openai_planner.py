@@ -71,6 +71,7 @@ def _planner_payload(
                 "name": record.name,
                 "current_stock": record.current_stock,
                 "incoming_stock": record.incoming_stock,
+                "supplier_code": record.supplier_code,
                 "effective_stock": record.current_stock + record.incoming_stock,
                 "daily_demand_used": round(daily_demand_used, 4),
                 "lead_time_days": record.lead_time_days,

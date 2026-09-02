@@ -98,6 +98,15 @@ HEADER_ALIASES = {
         "outstandingpo",
         "qtyonorder",
     },
+    "supplier_code": {
+        "supplier",
+        "suppliercode",
+        "suppliernumber",
+        "vendor",
+        "vendorcode",
+        "vendornumber",
+        "vendorid",
+    },
 }
 
 USAGE_HEADER_ALIASES = {
@@ -333,6 +342,9 @@ def _parse_rows(
                     incoming_stock=_read_optional_int(
                         row, inferred_headers.get("incoming_stock"), 0
                     ),
+                    supplier_code=_read_optional_text(
+                        row, inferred_headers.get("supplier_code")
+                    ),
                 )
             )
         except ValueError as error:
@@ -515,6 +527,7 @@ def _preview_mappings(headers: list[str], dataset_kind: str) -> list[FileMapping
             "safety_stock",
             "min_order_qty",
             "incoming_stock",
+            "supplier_code",
         ]
         if dataset_kind == "replenishment"
         else ["sku", "usage_date", "units_used"]
@@ -641,6 +654,13 @@ def _read_optional_int(row: dict[str, str], header: str | None, default: int) ->
     if _is_blank(raw_value):
         return default
     return int(_to_float(raw_value))
+
+
+def _read_optional_text(row: dict[str, str], header: str | None) -> str | None:
+    if not header:
+        return None
+    value = str(row.get(header, "")).strip()
+    return value or None
 
 
 def _to_float(value: str | None) -> float:

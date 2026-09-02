@@ -15,6 +15,7 @@ class ReplenishmentRecord(BaseModel):
     safety_stock: int = Field(0, ge=0)
     min_order_qty: int = Field(0, ge=0)
     incoming_stock: int = Field(0, ge=0)
+    supplier_code: str | None = None
 
 
 class IngestRequest(BaseModel):
@@ -96,6 +97,7 @@ class Recommendation(BaseModel):
     demand_source: str
     ai_refined: bool = False
     ai_note: str = ""
+    supplier_code: str | None = None
     explanation: str
 
 

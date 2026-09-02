@@ -71,6 +71,7 @@ def _mapping_prompt(
             "safety_stock",
             "min_order_qty",
             "incoming_stock",
+            "supplier_code",
         ],
         "usage": [
             "sku",
@@ -103,6 +104,7 @@ def _mapping_schema(dataset_kind: str) -> dict[str, Any]:
             "safety_stock",
             "min_order_qty",
             "incoming_stock",
+            "supplier_code",
         ],
         "usage": [
             "sku",

@@ -67,6 +67,19 @@ def test_parse_replenishment_file_infers_weekly_columns_and_incoming_stock() -> 
     assert records[0].daily_demand == pytest.approx((14 + 28) / 21)
 
 
+def test_parse_replenishment_file_reads_supplier_code() -> None:
+    content = "\n".join(
+        [
+            "Item Number,Item Description,On Hand,Daily Average Sales,Supplier",
+            "150100,Pumpkin,20,3,32SI02A",
+        ]
+    ).encode("utf-8")
+
+    records = parse_replenishment_file("bps.csv", content)
+
+    assert records[0].supplier_code == "32SI02A"
+
+
 def test_parse_replenishment_file_allows_zero_daily_demand() -> None:
     content = "\n".join(
         [

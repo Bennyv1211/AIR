@@ -265,8 +265,8 @@ def test_export_requires_required_answers_first() -> None:
 def test_export_returns_excel_file_when_verdict_is_ready() -> None:
     content = "\n".join(
         [
-            "Item Code,Description,On Hand,Daily Usage",
-            "SKU-6001,Canned Black Beans,3,2",
+            "Item Code,Description,On Hand,Daily Usage,Supplier",
+            "SKU-6001,Canned Black Beans,3,2,32SI02A",
         ]
     )
 
@@ -293,7 +293,7 @@ def test_export_returns_excel_file_when_verdict_is_ready() -> None:
     )
     assert "attachment;" in response.headers["content-disposition"]
     workbook = load_workbook(BytesIO(response.content))
-    assert workbook.sheetnames == ["Summary", "Verdict Detail", "Assumptions & Inputs", "PO Import Template"]
+    assert workbook.sheetnames == ["Summary", "Verdict Detail", "Assumptions & Inputs", "PO - 32SI02A"]
     assert workbook["Summary"]["A1"].value == "AIR Verdict Summary"
     assert workbook["Summary"]["D4"].value == "SKU Number"
     assert workbook["Verdict Detail"]["A1"].value == "SKU Number"
@@ -303,7 +303,7 @@ def test_export_returns_excel_file_when_verdict_is_ready() -> None:
     assert workbook["Assumptions & Inputs"]["B5"].value == "Monday, Wednesday, Friday"
     assert workbook["Assumptions & Inputs"]["B6"].value == "Monday, Wednesday, Friday"
     assert workbook["Assumptions & Inputs"]["B10"].value == "Export test context."
-    po_sheet = workbook["PO Import Template"]
+    po_sheet = workbook["PO - 32SI02A"]
     assert [po_sheet.cell(row=1, column=index).value for index in range(1, 5)] == [
         "PUNO",
         "ITNO",
