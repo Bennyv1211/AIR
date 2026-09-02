@@ -105,9 +105,9 @@ def test_build_recommendation_can_use_daily_usage_override() -> None:
 
     recommendation = build_recommendation(record, {"SKU-TREND": 6})
 
-    assert recommendation.demand_source == "daily-usage history"
+    assert recommendation.demand_source.startswith("daily-usage history")
     assert "refined demand rate" in recommendation.explanation
-    assert recommendation.reorder_point >= 27
+    assert recommendation.reorder_point == 13
 
 
 def test_build_recommendation_lets_usage_history_drive_demand_when_available() -> None:
@@ -124,10 +124,26 @@ def test_build_recommendation_lets_usage_history_drive_demand_when_available() -
 
     recommendation = build_recommendation(record, {"SKU-USAGE-FIRST": 7})
 
-    assert recommendation.demand_source == "daily-usage history"
-    assert recommendation.reorder_point == 18
-    assert recommendation.target_stock == 53
+    assert recommendation.demand_source.startswith("daily-usage history")
+    assert recommendation.reorder_point == 7
+    assert recommendation.target_stock == 13
     assert recommendation.needs_reorder is False
+
+
+def test_usage_history_is_guarded_by_the_inventory_snapshot_demand() -> None:
+    record = ReplenishmentRecord(
+        sku="SKU-GUARDED",
+        name="Guarded Demand Item",
+        current_stock=100,
+        daily_demand=10,
+        lead_time_days=2,
+    )
+
+    recommendation = build_recommendation(record, {"SKU-GUARDED": 50})
+
+    # The usage signal is capped at 125% of the BPS run rate, then blended at 60%.
+    assert "guarded against snapshot" in recommendation.demand_source
+    assert recommendation.reorder_point == 23
 
 
 def test_build_recommendation_handles_zero_demand_without_failing() -> None:

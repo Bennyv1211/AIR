@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from math import ceil
 from typing import Any
 
@@ -106,7 +107,8 @@ def _planner_prompt(payload: dict[str, Any]) -> str:
         "Think about outgoing daily demand, on-hand stock, incoming stock, safety stock, delivery cadence, "
         "lead time, and perishability assumptions.\n"
         "Only recommend the amount to order now for the current replenishment cycle. Do not stock up for multiple cycles.\n"
-        "If the baseline recommendation already looks right, keep it.\n"
+        "The rules-based plan is the safety baseline. Keep it unless there is a clear, data-supported reason to adjust it; "
+        "never treat unconfirmed incoming stock as guaranteed.\n"
         "Return one result per item, with concise reasoning.\n"
         f"Planning context: {json.dumps(payload, ensure_ascii=True)}"
     )
@@ -199,6 +201,10 @@ def _ai_final_explanation(baseline: str, order_qty: int, ai_note: str) -> str:
             baseline = baseline[len(prefix):].lstrip()
             break
 
+    # The rules explanation contains its original suggested quantity. Once AI safely
+    # refines it, showing both values makes the final verdict ambiguous.
+    baseline = re.sub(r"\s*Recommended order quantity:\s*\d+(?:\.\d+)?\.", "", baseline)
+
     note = f" AI planning note: {ai_note}" if ai_note else ""
     return f"{decision} {baseline}{note}".strip()
 
@@ -209,14 +215,14 @@ def _safe_ai_order_qty(
     daily_demand_used: float,
     ai_qty: int,
 ) -> int:
-    weekly_cushion = ceil(max(daily_demand_used, 0) * 7)
-    max_allowed = max(
-        recommendation.recommended_order_qty,
-        recommendation.reorder_point,
-        recommendation.target_stock,
-        record.min_order_qty,
-    ) + weekly_cushion
-    bounded = min(max(ai_qty, 0), max_allowed)
-    if bounded == 0:
+    baseline_qty = recommendation.recommended_order_qty
+    if baseline_qty <= 0:
+        # An LLM must not create a purchase where the schedule-aware safety rules say no.
         return 0
-    return max(record.min_order_qty, bounded)
+
+    # AI can fine-tune the current order, but cannot erase or materially inflate a
+    # schedule-backed order without a human changing the inputs.
+    variance = max(1, ceil(baseline_qty * 0.15))
+    lower_bound = max(record.min_order_qty, baseline_qty - variance)
+    upper_bound = baseline_qty + variance
+    return min(max(ai_qty, lower_bound), upper_bound)

@@ -202,7 +202,16 @@ def _refined_daily_demand(
     usage_daily_demand = usage_overrides.get(record.sku)
     if usage_daily_demand is None:
         return record.daily_demand, "snapshot"
-    return usage_daily_demand, "daily-usage history"
+    if record.daily_demand <= 0:
+        return usage_daily_demand, "daily-usage history"
+
+    # The inventory snapshot already contains a business-maintained daily run rate.
+    # Blend in movement history, but keep a short partial week from multiplying demand.
+    lower_bound = record.daily_demand * 0.75
+    upper_bound = record.daily_demand * 1.25
+    guarded_usage_demand = min(max(usage_daily_demand, lower_bound), upper_bound)
+    blended_demand = (record.daily_demand * 0.4) + (guarded_usage_demand * 0.6)
+    return blended_demand, "daily-usage history (guarded against snapshot)"
 
 
 def _build_explanation(
@@ -230,7 +239,8 @@ def _build_explanation(
         if incoming_available_for_delivery:
             incoming_note = (
                 f" AIR counts {record.incoming_stock} unit(s) already on order only from "
-                f"{schedule.incoming_arrival_date.strftime('%A')}, when that delivery is expected."
+                f"the next configured arrival day ({schedule.incoming_arrival_date.strftime('%A')}). "
+                "Confirm the PO ETA before releasing the order."
             )
         else:
             incoming_note = (
