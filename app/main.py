@@ -1147,6 +1147,17 @@ def _dashboard_html() -> str:
     .priority.medium { background: rgba(59, 130, 246, 0.12); color: var(--medium); }
     .priority.low { background: rgba(75, 127, 82, 0.12); color: var(--low); }
 
+    .order-quantity {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .order-quantity.needs-order {
+      color: #b42318;
+      font-weight: 800;
+      font-size: 16px;
+    }
+
     .origin-badge {
       display: inline-flex;
       align-items: center;
@@ -1543,7 +1554,7 @@ def _dashboard_html() -> str:
           <td>${item.current_stock}</td>
           <td>${item.reorder_point}</td>
           <td>${item.target_stock}</td>
-          <td>${item.recommended_order_qty}</td>
+          <td><span class="order-quantity ${item.recommended_order_qty > 0 ? "needs-order" : ""}">${item.recommended_order_qty}</span></td>
           <td>${item.planned_order_date ? `Order: ${item.planned_order_date}<br><span style="color: var(--muted);">Arrives: ${item.planned_delivery_date}</span>` : "Set order days"}</td>
           <td><span class="priority ${item.priority}">${item.priority}</span></td>
           <td>${item.projected_stockout_date || "Stable"}</td>
